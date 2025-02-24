@@ -54,7 +54,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/search", searchHandler)
+	http.HandleFunc("/search", rateLimitMiddleware(searchHandler))
 
 	// Use the PORT environment variable if available, else default to 8080.
 	port := os.Getenv("PORT")
@@ -64,5 +64,21 @@ func main() {
 	log.Printf("Starting server on port %s...", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+// rateLimitMiddleware is a simple rate limiting middleware to prevent DDOS attacks.
+func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	// A simple in-memory rate limiter using a map.
+	// In production, consider using a more robust solution like Redis.
+	var rateLimiter = make(map[string]int)
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := r.RemoteAddr
+		if count, exists := rateLimiter[ip]; exists && count >= 10 {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+		rateLimiter[ip]++
+		next.ServeHTTP(w, r)
 	}
 }
