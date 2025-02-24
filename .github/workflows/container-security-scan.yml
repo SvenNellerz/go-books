@@ -1,0 +1,39 @@
+name: Container Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        run: |
+          docker build -t my-image:latest .
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM with Grype
+        run: |
+          grype my-image:latest -o cyclonedx > sbom.json
+
+      - name: Install Snyk CLI
+        run: |
+          npm install -g snyk
+
+      - name: Run Snyk scan on SBOM
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk test --sbom-file=sbom.json
