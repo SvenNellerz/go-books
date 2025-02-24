@@ -35,7 +35,7 @@ jobs:
           grype nginx:latest -o cyclonedx > sbom-nginx.json
 
       - name: Upload SBOM Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sbom-artifacts
           path: |
@@ -52,7 +52,7 @@ jobs:
           snyk test --sbom-file=sbom-app.json | tee snyk-app-output.txt
 
       - name: Upload Snyk Go App Scan Output
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: snyk-app-scan-output
           path: snyk-app-output.txt
@@ -64,7 +64,7 @@ jobs:
           snyk test --sbom-file=sbom-nginx.json | tee snyk-nginx-output.txt
 
       - name: Upload Snyk NGINX Scan Output
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: snyk-nginx-scan-output
           path: snyk-nginx-output.txt
