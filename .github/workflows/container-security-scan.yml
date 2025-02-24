@@ -28,12 +28,24 @@ jobs:
         run: |
           grype my-image:latest -o cyclonedx > sbom.json
 
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom-json
+          path: sbom.json
+
       - name: Install Snyk CLI
         run: |
           npm install -g snyk
 
-      - name: Run Snyk scan on SBOM
+      - name: Run Snyk scan on SBOM and save output
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          snyk test --sbom-file=sbom.json
+          snyk test --sbom-file=sbom.json | tee snyk-output.txt
+
+      - name: Upload Snyk scan output
+        uses: actions/upload-artifact@v3
+        with:
+          name: snyk-scan-output
+          path: snyk-output.txt
