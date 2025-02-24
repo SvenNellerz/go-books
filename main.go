@@ -7,66 +7,62 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-
-	"github.com/spf13/cobra"
 )
 
-// book struct to hold all book data
+// Book struct to hold book data.
 type Book struct {
 	Title string `json:"title"`
 }
 
+// searchResults holds the API response structure.
 type searchResults struct {
 	Docs []Book `json:"docs"`
 }
 
-// Root Command
-var rootcmd = &cobra.Command{
-	Use:   "books",
-	Short: "Books CLI is an application to fetch books by authors",
-}
+// searchHandler handles HTTP requests to search for books by author.
+func searchHandler(w http.ResponseWriter, r *http.Request) {
+	author := r.URL.Query().Get("author")
+	if author == "" {
+		http.Error(w, "Missing 'author' query parameter", http.StatusBadRequest)
+		return
+	}
 
-// Search Command
-var cmsSearch = &cobra.Command{
-	Use:   "search [author]",
-	Short: "Search for books by a specific author",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		searchBooks(args[0])
-	},
-}
-
-// function to search books by author via api call
-func searchBooks(author string) (searchResults, error) {
 	safeAuthor := url.QueryEscape(author)
-	url := fmt.Sprintf("https://openlibrary.org/search.json?author=%s", safeAuthor)
-	resp, err := http.Get(url)
+	apiURL := fmt.Sprintf("https://openlibrary.org/search.json?author=%s", safeAuthor)
+	resp, err := http.Get(apiURL)
 	if err != nil {
-		// log and exit if there is an error fetching books
-		log.Fatalf("Error fetching data: %v", err)
+		http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
+		return
 	}
 	defer resp.Body.Close()
+
 	var results searchResults
-	err = json.NewDecoder(resp.Body).Decode(&results)
-	if err != nil {
-		log.Fatalf("Error decoding data: %v", err)
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+		http.Error(w, fmt.Sprintf("Error decoding data: %v", err), http.StatusInternalServerError)
+		return
 	}
 
 	if len(results.Docs) == 0 {
-		fmt.Println("No books found for ", author)
+		http.Error(w, fmt.Sprintf("No books found for author %s", author), http.StatusNotFound)
+		return
 	}
 
-	fmt.Println("Books found for ", author)
-	for _, book := range results.Docs {
-		fmt.Printf(" - %s\n", book.Title)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(results); err != nil {
+		http.Error(w, fmt.Sprintf("Error encoding response: %v", err), http.StatusInternalServerError)
 	}
-	return results, nil
 }
 
 func main() {
-	rootcmd.AddCommand(cmsSearch)
-	if err := rootcmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	http.HandleFunc("/search", searchHandler)
+
+	// Use the PORT environment variable if available, else default to 8080.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Starting server on port %s...", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("Server failed: %v", err)
 	}
 }
