@@ -16,36 +16,55 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Build Docker image
-        run: |
-          docker build -t my-image:latest .
+      - name: Build Go App Container
+        run: docker-compose build app
+
+      - name: Pull NGINX Image
+        run: docker-compose pull nginx
 
       - name: Install Grype
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Generate SBOM with Grype
+      - name: Generate SBOM for Go App Container
         run: |
-          grype my-image:latest -o cyclonedx > sbom.json
+          grype go_app:latest -o cyclonedx > sbom-app.json
 
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+      - name: Generate SBOM for NGINX Container
+        run: |
+          grype nginx:latest -o cyclonedx > sbom-nginx.json
+
+      - name: Upload SBOM Artifacts
+        uses: actions/upload-artifact@v3
         with:
-          name: sbom-json
-          path: sbom.json
+          name: sbom-artifacts
+          path: |
+            sbom-app.json
+            sbom-nginx.json
 
       - name: Install Snyk CLI
-        run: |
-          npm install -g snyk
+        run: npm install -g snyk
 
-      - name: Run Snyk scan on SBOM and save output
+      - name: Run Snyk Scan on Go App SBOM
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          snyk test --sbom-file=sbom.json | tee snyk-output.txt
+          snyk test --sbom-file=sbom-app.json | tee snyk-app-output.txt
 
-      - name: Upload Snyk scan output
-        uses: actions/upload-artifact@v4
+      - name: Upload Snyk Go App Scan Output
+        uses: actions/upload-artifact@v3
         with:
-          name: snyk-scan-output
-          path: snyk-output.txt
+          name: snyk-app-scan-output
+          path: snyk-app-output.txt
+
+      - name: Run Snyk Scan on NGINX SBOM
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk test --sbom-file=sbom-nginx.json | tee snyk-nginx-output.txt
+
+      - name: Upload Snyk NGINX Scan Output
+        uses: actions/upload-artifact@v3
+        with:
+          name: snyk-nginx-scan-output
+          path: snyk-nginx-output.txt
