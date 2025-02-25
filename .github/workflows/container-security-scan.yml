@@ -18,7 +18,7 @@ jobs:
 
       # Build the final Go app image.
       - name: Build Go App Container
-        run: docker build -t books-app:latest .
+        run: docker build -t books-app:latest -f dockerfile .
 
       # Pull the official NGINX image.
       - name: Pull NGINX Image
@@ -37,22 +37,21 @@ jobs:
       - name: Generate SBOM for NGINX Container
         run: grype nginx:latest -o cyclonedx > sbom-nginx.json
 
-      # Extract the base image from the Dockerfile (ignoring "scratch").
-      - name: Extract Base Image from Dockerfile
+      # Extract the base image from the dockerfile (ignoring "scratch").
+      - name: Extract Base Image from dockerfile
         id: extract_base
         run: |
-          if [ ! -f ./Dockerfile ]; then
-            echo "Error: Dockerfile not found in the repository root."
+          if [ ! -f ./dockerfile ]; then
+            echo "Error: dockerfile not found in the repository root."
             exit 1
           fi
-          base=$(grep -E '^FROM' ./Dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
+          base=$(grep -E '^FROM' ./dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
           if [ -z "$base" ]; then
-            echo "Error: No valid base image found in Dockerfile."
+            echo "Error: No valid base image found in dockerfile."
             exit 1
           fi
           echo "Base image found: $base"
           echo "base_image=$base" >> $GITHUB_OUTPUT
-
 
       # Pull and generate SBOM for the builder base image.
       - name: Scan Builder Base Image
@@ -74,38 +73,36 @@ jobs:
       - name: Install Snyk CLI
         run: npm install -g snyk
 
-      # Run Snyk scan on the Go app image SBOM.
-      - name: Run Snyk Scan on Go App SBOM
+      # Scan the images directly using Snyk Container Test.
+      - name: Run Snyk Container Scan on Go App Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --sbom-file=sbom-app.json | tee snyk-app-output.txt
+        run: snyk container test books-app:latest --json-file-output=snyk-app-container-output.json
 
-      - name: Upload Snyk Go App Scan Output
+      - name: Upload Snyk Go App Container Scan Output
         uses: actions/upload-artifact@v4
         with:
-          name: snyk-app-scan-output
-          path: snyk-app-output.txt
+          name: snyk-app-container-scan-output
+          path: snyk-app-container-output.json
 
-      # Run Snyk scan on the NGINX image SBOM.
-      - name: Run Snyk Scan on NGINX SBOM
+      - name: Run Snyk Container Scan on NGINX Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --sbom-file=sbom-nginx.json | tee snyk-nginx-output.txt
+        run: snyk container test nginx:latest --json-file-output=snyk-nginx-container-output.json
 
-      - name: Upload Snyk NGINX Scan Output
+      - name: Upload Snyk NGINX Container Scan Output
         uses: actions/upload-artifact@v4
         with:
-          name: snyk-nginx-scan-output
-          path: snyk-nginx-output.txt
+          name: snyk-nginx-container-scan-output
+          path: snyk-nginx-container-output.json
 
-      # Run Snyk scan on the builder base image SBOM.
-      - name: Run Snyk Scan on Builder Base SBOM
+      - name: Run Snyk Container Scan on Builder Base Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --sbom-file=sbom-builder.json | tee snyk-builder-output.txt
+        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --json-file-output=snyk-builder-container-output.json
 
-      - name: Upload Snyk Builder Scan Output
+      - name: Upload Snyk Builder Container Scan Output
         uses: actions/upload-artifact@v4
         with:
-          name: snyk-builder-scan-output
-          path: snyk-builder-output.txt
+          name: snyk-builder-container-scan-output
+          path: snyk-builder-container-output.json
