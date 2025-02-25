@@ -9,6 +9,9 @@ on:
 jobs:
   security_scan:
     runs-on: ubuntu-latest
+    # Grant permission to write code scanning alerts
+    permissions:
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -103,6 +106,6 @@ jobs:
 
       # Upload the merged SARIF file to GitHub Code Scanning.
       - name: Upload Snyk scan results to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: merged.sarif
