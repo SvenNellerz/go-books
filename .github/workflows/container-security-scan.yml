@@ -41,7 +41,11 @@ jobs:
       - name: Extract Base Image from Dockerfile
         id: extract_base
         run: |
-          base=$(grep -E '^FROM' Dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
+          if [ ! -f ./Dockerfile ]; then
+            echo "Error: Dockerfile not found in the repository root."
+            exit 1
+          fi
+          base=$(grep -E '^FROM' ./Dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
           if [ -z "$base" ]; then
             echo "Error: No valid base image found in Dockerfile."
             exit 1
