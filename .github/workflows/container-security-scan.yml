@@ -1,4 +1,4 @@
-name: Container Security Scan
+name: Container & Base Image Security Scan
 
 on:
   push:
@@ -16,35 +16,58 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      # Build your Go application container
       - name: Build Go App Container
-        run: docker compose build app
+        run: docker build -t books-app:latest .
 
-      - name: Pull NGINX Image
-        run: docker compose pull nginx
-
+      # Install Grype for vulnerability scanning
       - name: Install Grype
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
+      # Extract base images from the Dockerfile without hardcoding them.
+      - name: Extract Base Images from Dockerfile
+        id: extract_base
+        run: |
+          # Parse lines starting with FROM, extract the second field, and exclude 'scratch'
+          images=$(grep -E '^FROM' Dockerfile | awk '{print $2}' | grep -v '^scratch$' | sort | uniq)
+          echo "Found base images: $images"
+          # Use the new GITHUB_OUTPUT syntax to set the output variable 'images'
+          echo "images<<EOF" >> $GITHUB_OUTPUT
+          echo "$images"
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # Loop over each extracted base image, pull and scan it
+      - name: Scan Base Images
+        run: |
+          # Convert the output into a space-separated list
+          for image in $(echo "${{ steps.extract_base.outputs.images }}"); do
+            echo "Pulling and scanning base image: $image"
+            docker pull "$image"
+            # Replace characters not allowed in filenames (like '/' and ':') with underscores
+            safeImage=$(echo "$image" | tr '/:' '__')
+            grype "$image" -o cyclonedx > "sbom-${safeImage}.json"
+          done
+
+      # Generate SBOM for the final Go app image
       - name: Generate SBOM for Go App Container
         run: |
-          grype go-books:latest -o cyclonedx > sbom-app.json
+          grype books-app:latest -o cyclonedx > sbom-app.json
 
-      - name: Generate SBOM for NGINX Container
-        run: |
-          grype nginx:latest -o cyclonedx > sbom-nginx.json
-
+      # Upload all SBOM artifacts (final image + base images)
       - name: Upload SBOM Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: sbom-artifacts
           path: |
             sbom-app.json
-            sbom-nginx.json
+            sbom-*.json
 
+      # Install the Snyk CLI for vulnerability scanning
       - name: Install Snyk CLI
         run: npm install -g snyk
 
+      # Run Snyk scan on the final image SBOM
       - name: Run Snyk Scan on Go App SBOM
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -57,14 +80,23 @@ jobs:
           name: snyk-app-scan-output
           path: snyk-app-output.txt
 
-      - name: Run Snyk Scan on NGINX SBOM
+      # Optionally, run Snyk scans on each base image SBOM
+      - name: Run Snyk Scan on Base Images SBOMs
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          snyk test --sbom-file=sbom-nginx.json | tee snyk-nginx-output.txt
+          for file in sbom-*.json; do
+            # Skip the app SBOM if its filename matches our pattern
+            if [ "$file" = "sbom-app.json" ]; then
+              continue
+            fi
+            echo "Scanning $file with Snyk"
+            snyk test --sbom-file="$file" | tee "snyk-$(basename $file .json)-output.txt"
+          done
 
-      - name: Upload Snyk NGINX Scan Output
+      - name: Upload Snyk Base Image Scan Outputs
         uses: actions/upload-artifact@v4
         with:
-          name: snyk-nginx-scan-output
-          path: snyk-nginx-output.txt
+          name: snyk-base-scan-outputs
+          path: |
+            snyk-*-output.txt
