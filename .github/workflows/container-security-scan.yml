@@ -97,30 +97,32 @@ jobs:
       # Merge individual SARIF files into one, limiting runs to 20 and replacing null severity values in rules.
       - name: Merge SARIF Files
         run: |
-          jq -s '
-          {
+          jq -s '{
             "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
             "version": "2.1.0",
             "runs": (
               map(.runs[]) | .[0:20]
               | map(
-                  if .tool.driver.rules then
+                  if (.tool.driver.rules) then 
                     .tool.driver.rules |= map(
-                      if .properties.security_severity_level == null then
-                        del(.properties.security_severity_level)
-                      else
-                        .
+                      if (.properties.security_severity_level == null)
+                      then del(.properties.security_severity_level)
+                      else .
                       end
                     )
-                  else
-                    .
+                  else .
                   end
                 )
             )
           }' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif > merged.sarif
 
-      # Upload the merged SARIF file to GitHub Code Scanning.
-      - name: Upload Snyk scan results to GitHub Code Scanning
+      - name: Upload Merged SARIF Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-sarif
+          path: merged.sarif
+
+      - name: Upload SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: merged.sarif
