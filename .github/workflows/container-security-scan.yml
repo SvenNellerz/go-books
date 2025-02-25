@@ -73,11 +73,12 @@ jobs:
       - name: Install Snyk CLI
         run: npm install -g snyk
 
-      # Scan the images directly using Snyk Container Test, including Dockerfile for base image detection.
+      # Run Snyk Container Scans with --fail-on=none so they don't stop the job immediately.
       - name: Run Snyk Container Scan on Go App Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test books-app:latest --file=Dockerfile --json-file-output=snyk-app-container-output.json
+        run: snyk container test books-app:latest --file=Dockerfile --fail-on=none --json-file-output=snyk-app-container-output.json
+        continue-on-error: true
 
       - name: Upload Snyk Go App Container Scan Output
         uses: actions/upload-artifact@v4
@@ -88,7 +89,8 @@ jobs:
       - name: Run Snyk Container Scan on NGINX Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test nginx:latest --file=Dockerfile --json-file-output=snyk-nginx-container-output.json
+        run: snyk container test nginx:latest --file=Dockerfile --fail-on=none --json-file-output=snyk-nginx-container-output.json
+        continue-on-error: true
 
       - name: Upload Snyk NGINX Container Scan Output
         uses: actions/upload-artifact@v4
@@ -99,11 +101,31 @@ jobs:
       - name: Run Snyk Container Scan on Builder Base Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        continue-on-error: true
         run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=Dockerfile --fail-on=none --json-file-output=snyk-builder-container-output.json
+        continue-on-error: true
 
       - name: Upload Snyk Builder Container Scan Output
         uses: actions/upload-artifact@v4
         with:
           name: snyk-builder-container-scan-output
           path: snyk-builder-container-output.json
+
+      # Final step: Aggregate results and fail the job if any vulnerabilities are found.
+      - name: Aggregate Snyk Results
+        run: |
+          errors=0
+          for file in snyk-app-container-output.json snyk-nginx-container-output.json snyk-builder-container-output.json; do
+            if [ -f "$file" ]; then
+              vuln_count=$(jq '.vulnerabilities | length' "$file")
+              echo "$file has $vuln_count vulnerabilities."
+              if [ "$vuln_count" -gt 0 ]; then
+                errors=$((errors + vuln_count))
+              fi
+            fi
+          done
+          if [ "$errors" -gt 0 ]; then
+            echo "Total vulnerabilities found: $errors"
+            exit 1
+          else
+            echo "No vulnerabilities found in container scans."
+          fi
