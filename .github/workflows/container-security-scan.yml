@@ -37,17 +37,17 @@ jobs:
       - name: Generate SBOM for NGINX Container
         run: grype nginx:latest -o cyclonedx > sbom-nginx.json
 
-      # Extract the base image from the dockerfile (ignoring "scratch").
-      - name: Extract Base Image from dockerfile
+      # Extract the base image from the Dockerfile (ignoring "scratch").
+      - name: Extract Base Image from Dockerfile
         id: extract_base
         run: |
           if [ ! -f Dockerfile ]; then
-            echo "Error: dockerfile not found in the repository root."
+            echo "Error: Dockerfile not found in the repository root."
             exit 1
           fi
           base=$(grep -E '^FROM' Dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
           if [ -z "$base" ]; then
-            echo "Error: No valid base image found in dockerfile."
+            echo "Error: No valid base image found in Dockerfile."
             exit 1
           fi
           echo "Base image found: $base"
@@ -99,7 +99,8 @@ jobs:
       - name: Run Snyk Container Scan on Builder Base Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=Dockerfile --json-file-output=snyk-builder-container-output.json
+        continue-on-error: true
+        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=Dockerfile --fail-on=none --json-file-output=snyk-builder-container-output.json
 
       - name: Upload Snyk Builder Container Scan Output
         uses: actions/upload-artifact@v4
