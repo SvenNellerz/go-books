@@ -73,59 +73,36 @@ jobs:
       - name: Install Snyk CLI
         run: npm install -g snyk
 
-      # Run Snyk Container Scans with a valid fail-on argument.
+      # Run Snyk Container Scans with SARIF output.
       - name: Run Snyk Container Scan on Go App Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         continue-on-error: true
-        run: snyk container test books-app:latest --file=Dockerfile --fail-on=all --json-file-output=snyk-app-container-output.json
-
-      - name: Upload Snyk Go App Container Scan Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: snyk-app-container-scan-output
-          path: snyk-app-container-output.json
+        run: snyk container test books-app:latest --file=Dockerfile --sarif-file-output=snyk-app.sarif --fail-on=all
 
       - name: Run Snyk Container Scan on NGINX Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         continue-on-error: true
-        run: snyk container test nginx:latest --file=Dockerfile --fail-on=all --json-file-output=snyk-nginx-container-output.json
-
-      - name: Upload Snyk NGINX Container Scan Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: snyk-nginx-container-scan-output
-          path: snyk-nginx-container-output.json
+        run: snyk container test nginx:latest --file=Dockerfile --sarif-file-output=snyk-nginx.sarif --fail-on=all
 
       - name: Run Snyk Container Scan on Builder Base Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         continue-on-error: true
-        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=Dockerfile --fail-on=all --json-file-output=snyk-builder-container-output.json
+        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=Dockerfile --sarif-file-output=snyk-builder.sarif --fail-on=all
 
-      - name: Upload Snyk Builder Container Scan Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: snyk-builder-container-scan-output
-          path: snyk-builder-container-output.json
-
-      # Final step: Aggregate results and fail the job if vulnerabilities exist.
-      - name: Aggregate Snyk Results
+      # Merge individual SARIF files into one.
+      - name: Merge SARIF Files
         run: |
-          errors=0
-          for file in snyk-app-container-output.json snyk-nginx-container-output.json snyk-builder-container-output.json; do
-            if [ -f "$file" ]; then
-              vuln_count=$(jq '.vulnerabilities | length' "$file")
-              echo "$file has $vuln_count vulnerabilities."
-              if [ "$vuln_count" -gt 0 ]; then
-                errors=$((errors + vuln_count))
-              fi
-            fi
-          done
-          if [ "$errors" -gt 0 ]; then
-            echo "Total vulnerabilities found: $errors"
-            exit 1
-          else
-            echo "No vulnerabilities found in container scans."
-          fi
+          jq -s '{
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "version": "2.1.0",
+            "runs": map(.runs[]) 
+          }' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif > merged.sarif
+
+      # Upload the merged SARIF file to GitHub Code Scanning.
+      - name: Upload Snyk scan results to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: merged.sarif
