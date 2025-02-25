@@ -18,7 +18,7 @@ jobs:
 
       # Build the final Go app image.
       - name: Build Go App Container
-        run: docker build -t books-app:latest -f Dockerfile .
+        run: docker build -t books-app:latest -f dockerfile .
 
       # Pull the official NGINX image.
       - name: Pull NGINX Image
@@ -41,11 +41,11 @@ jobs:
       - name: Extract Base Image from dockerfile
         id: extract_base
         run: |
-          if [ ! -f ./Dockerfile ]; then
+          if [ ! -f ./dockerfile ]; then
             echo "Error: dockerfile not found in the repository root."
             exit 1
           fi
-          base=$(grep -E '^FROM' ./Dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
+          base=$(grep -E '^FROM' ./dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
           if [ -z "$base" ]; then
             echo "Error: No valid base image found in dockerfile."
             exit 1
@@ -73,11 +73,11 @@ jobs:
       - name: Install Snyk CLI
         run: npm install -g snyk
 
-      # Scan the images directly using Snyk Container Test.
+      # Scan the images directly using Snyk Container Test, including Dockerfile for base image detection.
       - name: Run Snyk Container Scan on Go App Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test books-app:latest --json-file-output=snyk-app-container-output.json
+        run: snyk container test books-app:latest --file=dockerfile --json-file-output=snyk-app-container-output.json
 
       - name: Upload Snyk Go App Container Scan Output
         uses: actions/upload-artifact@v4
@@ -88,7 +88,7 @@ jobs:
       - name: Run Snyk Container Scan on NGINX Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test nginx:latest --json-file-output=snyk-nginx-container-output.json
+        run: snyk container test nginx:latest --file=dockerfile --json-file-output=snyk-nginx-container-output.json
 
       - name: Upload Snyk NGINX Container Scan Output
         uses: actions/upload-artifact@v4
@@ -99,7 +99,7 @@ jobs:
       - name: Run Snyk Container Scan on Builder Base Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --json-file-output=snyk-builder-container-output.json
+        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=dockerfile --json-file-output=snyk-builder-container-output.json
 
       - name: Upload Snyk Builder Container Scan Output
         uses: actions/upload-artifact@v4
