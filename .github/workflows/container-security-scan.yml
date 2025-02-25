@@ -97,26 +97,14 @@ jobs:
       # Merge individual SARIF files into one, limiting runs to 20 and replacing null severity values in rules.
       - name: Merge SARIF Files with Debugging
         run: |
-          set -x
-          echo "Merging individual SARIF files and limiting runs to 20..."
           jq -s '{
             "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
             "version": "2.1.0",
-            "runs": (map(.runs[]) | .[0:20])
-          }' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif > merged1.sarif
-          echo "=== Contents of merged1.sarif (first 50 lines) ==="
-          head -n 50 merged1.sarif
-
-          echo "Processing merged1.sarif to replace null security_severity_level values..."
-          jq 'def walk(f):
-            . as $in
-            | if type == "object" then
-                reduce keys_unsorted[] as $key ( {}; . + { ($key): ( ($in[$key] | walk(f)) | f ) } )
-              elif type == "array" then map( walk(f) | f )
-              else f end;
-          walk(if type=="object" and (.properties? | type=="object") and (.properties.security_severity_level == null)
-            then .properties.security_severity_level = 0
-            else . end)' merged1.sarif > merged.sarif
+            "runs": (
+              map(.runs[]) | .[0:20] 
+              | map(.tool.driver.rules |= (map(.properties.security_severity_level //= 0)))
+            )
+          }' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif > merged.sarif
           echo "=== Contents of merged.sarif (first 50 lines) ==="
           head -n 50 merged.sarif
 
