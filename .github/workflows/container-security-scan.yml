@@ -109,8 +109,8 @@ jobs:
               "runs": (map(.runs[]) | .[0:20])
             }
             | walk(if type=="object" and (.properties? | type=="object") and (.properties.security_severity_level == null)
-                  then .properties.security_severity_level = 0
-                  else . end)' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif > merged.sarif
+              then .properties.security_severity_level = 0
+              else . end)' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif > merged.sarif
 
       # Upload the merged SARIF file to GitHub Code Scanning.
       - name: Upload Snyk scan results to GitHub Code Scanning
