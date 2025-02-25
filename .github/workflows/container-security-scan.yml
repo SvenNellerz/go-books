@@ -18,7 +18,7 @@ jobs:
 
       # Build the final Go app image.
       - name: Build Go App Container
-        run: docker build -t books-app:latest -f dockerfile .
+        run: docker build -t books-app:latest -f Dockerfile .
 
       # Pull the official NGINX image.
       - name: Pull NGINX Image
