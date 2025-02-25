@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: go-books:latest   # Add this line to tag the image
     container_name: go-books
     expose:
       - "8080"  # This port is used for inter-container communication.
