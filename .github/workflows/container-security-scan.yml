@@ -94,7 +94,7 @@ jobs:
         continue-on-error: true
         run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=Dockerfile --sarif-file-output=snyk-builder.sarif --fail-on=all
 
-      # Merge individual SARIF files into one, limiting runs to 20 and replacing null security severity values with 0.
+      # Merge individual SARIF files into one, limiting runs to 20 and replacing null severity values in rules.
       - name: Merge SARIF Files
         run: |
           jq -s '{
@@ -102,7 +102,7 @@ jobs:
             "version": "2.1.0",
             "runs": (map(.runs[]) | .[0:20])
           }' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif \
-          | jq '(.runs[]?.results[]? | select(.properties != null and (.properties.security_severity_level == null)) | .properties.security_severity_level) |= 0' > merged.sarif
+          | jq '(.runs[].tool.driver.rules[]? | select(.properties.security_severity_level == null) | .properties.security_severity_level) |= 0' > merged.sarif
 
       # Upload the merged SARIF file to GitHub Code Scanning.
       - name: Upload Snyk scan results to GitHub Code Scanning
