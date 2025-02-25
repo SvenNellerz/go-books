@@ -18,7 +18,7 @@ jobs:
 
       # Build the final Go app image.
       - name: Build Go App Container
-        run: docker build -t books-app:latest -f dockerfile .
+        run: docker build -t books-app:latest -f Dockerfile .
 
       # Pull the official NGINX image.
       - name: Pull NGINX Image
@@ -41,11 +41,11 @@ jobs:
       - name: Extract Base Image from dockerfile
         id: extract_base
         run: |
-          if [ ! -f ./dockerfile ]; then
+          if [ ! -f ./Dockerfile ]; then
             echo "Error: dockerfile not found in the repository root."
             exit 1
           fi
-          base=$(grep -E '^FROM' ./dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
+          base=$(grep -E '^FROM' ./Dockerfile | awk '{print $2}' | grep -v '^scratch$' | head -n1)
           if [ -z "$base" ]; then
             echo "Error: No valid base image found in dockerfile."
             exit 1
