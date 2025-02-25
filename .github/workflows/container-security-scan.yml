@@ -73,12 +73,12 @@ jobs:
       - name: Install Snyk CLI
         run: npm install -g snyk
 
-      # Run Snyk Container Scans with --fail-on=none so they don't stop the job immediately.
+      # Run Snyk Container Scans with a valid fail-on argument.
       - name: Run Snyk Container Scan on Go App Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test books-app:latest --file=Dockerfile --fail-on=none --json-file-output=snyk-app-container-output.json
         continue-on-error: true
+        run: snyk container test books-app:latest --file=Dockerfile --fail-on=all --json-file-output=snyk-app-container-output.json
 
       - name: Upload Snyk Go App Container Scan Output
         uses: actions/upload-artifact@v4
@@ -89,8 +89,8 @@ jobs:
       - name: Run Snyk Container Scan on NGINX Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test nginx:latest --file=Dockerfile --fail-on=none --json-file-output=snyk-nginx-container-output.json
         continue-on-error: true
+        run: snyk container test nginx:latest --file=Dockerfile --fail-on=all --json-file-output=snyk-nginx-container-output.json
 
       - name: Upload Snyk NGINX Container Scan Output
         uses: actions/upload-artifact@v4
@@ -101,8 +101,8 @@ jobs:
       - name: Run Snyk Container Scan on Builder Base Image
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=Dockerfile --fail-on=none --json-file-output=snyk-builder-container-output.json
         continue-on-error: true
+        run: snyk container test "${{ steps.extract_base.outputs.base_image }}" --file=Dockerfile --fail-on=all --json-file-output=snyk-builder-container-output.json
 
       - name: Upload Snyk Builder Container Scan Output
         uses: actions/upload-artifact@v4
@@ -110,7 +110,7 @@ jobs:
           name: snyk-builder-container-scan-output
           path: snyk-builder-container-output.json
 
-      # Final step: Aggregate results and fail the job if any vulnerabilities are found.
+      # Final step: Aggregate results and fail the job if vulnerabilities exist.
       - name: Aggregate Snyk Results
         run: |
           errors=0
