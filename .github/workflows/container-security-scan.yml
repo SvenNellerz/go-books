@@ -28,7 +28,7 @@ jobs:
 
       - name: Generate SBOM for Go App Container
         run: |
-          grype go_app:latest -o cyclonedx > sbom-app.json
+          grype go-books:latest -o cyclonedx > sbom-app.json
 
       - name: Generate SBOM for NGINX Container
         run: |
