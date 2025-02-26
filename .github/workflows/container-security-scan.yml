@@ -100,14 +100,22 @@ jobs:
           jq -s '{
             "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
             "version": "2.1.0",
-            "runs": (map(.runs[]) | .[0:20])
-          }' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif |
-          jq '(.runs[] | .tool.driver.rules //= []) |= map(
-            if .properties and (.properties["security-severity"] == null or .properties["security-severity"] == "null")
-            then .properties |= del(.["security-severity"])
-            else .
-            end
-          )' > merged.sarif
+            "runs": (
+              (map(.runs[]) | .[0:20])
+              | map(
+                  if (.tool.driver.rules) then
+                    .tool.driver.rules |= map(
+                      if (.properties | has("security-severity") and (.properties["security-severity"] == null or .properties["security-severity"] == "null"))
+                      then .properties |= del(.["security-severity"])
+                      else .
+                      end
+                    )
+                  else
+                    .
+                  end
+                )
+            )
+          }' snyk-app.sarif snyk-nginx.sarif snyk-builder.sarif > merged.sarif
 
       - name: Upload Merged SARIF Artifact
         uses: actions/upload-artifact@v4
